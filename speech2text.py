@@ -1,29 +1,31 @@
-from transformers import pipeline
-import datasets
-import soundfile as sf
-from IPython.display import Audio
+from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor
+import torchaudio
+import torch
 
-# Load the automatic-speech-recognition pipeline
-asr = pipeline("automatic-speech-recognition")
+# Load the tokenizer and model
+processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base-960h")
+model = Wav2Vec2ForCTC.from_pretrained("facebook/wav2vec2-base-960h")
 
-# Load the dataset
-dataset = datasets.load_dataset("lm.ckpt")
+# Define a function to transcribe speech
+def transcribe_audio(audio_file):
+    try:
+        speech_input, _ = torchaudio.load(audio_file)
+        input_values = processor(speech_input[0].numpy(), return_tensors="pt").input_values
+        with torch.no_grad():
+            logits = model(input_values).logits
+        predicted_ids = torch.argmax(logits, dim=-1)
+        transcription = processor.batch_decode(predicted_ids)[0]
+        return transcription
+    except Exception as e:
+        return str(e)
 
-# Define a function to map the dataset
-def map_to_array(batch):
-    speech, _ = sf.read(batch["file"])
-    batch["speech"] = speech
-    return batch
+# Audio file path (assuming it's in the same directory as the script)
+audio_file = "namibia.wav"  # Replace with the correct file path
+result = transcribe_audio(audio_file)
 
-# Apply the mapping function to the dataset
-dataset = dataset.map(map_to_array)
+# Save the transcription to a .txt file
+output_file = "transcription.txt"
+with open(output_file, "w") as text_file:
+    text_file.write(result)
 
-# Display the audio using IPython
-display(Audio(dataset[0]['speech'], rate=16000))
-
-# Set the dataset format to numpy
-dataset.set_format("numpy")
-
-# Perform ASR on the audio
-pred = asr(dataset[0]["speech"], model_name="your_model_name")
-print(pred)
+print("Transcription saved to", output_file)

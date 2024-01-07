@@ -1,0 +1,7 @@
+transformers
+datasets
+soundfile
+ipython
+torch
+torchaudio
+
